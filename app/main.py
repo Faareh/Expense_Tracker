@@ -1,4 +1,4 @@
-from fastapi import Depends, FastAPI, status, HTTPException
+from fastapi import Depends, FastAPI, status, HTTPException, Response
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 
@@ -58,3 +58,44 @@ def get_expense(expense_id: int, db: Session = Depends(get_db)):
         )
 
     return expense
+
+@app.put("/expenses/{expense_id}", response_model=schemas.ExpenseResponse)
+def update_expense(
+    expense_id: int,
+    updated_expense: schemas.ExpenseCreate,
+    db: Session = Depends(get_db),
+):
+    expense = db.get(models.Expense, expense_id)
+
+    if expense is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Expense not found",
+        )
+
+    # Replace the existing values with the validated request values
+    for field, value in updated_expense.model_dump().items():
+        setattr(expense, field, value)
+
+    db.commit()
+    db.refresh(expense)
+    return expense
+
+
+@app.delete(
+    "/expenses/{expense_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_expense(expense_id: int, db: Session = Depends(get_db)):
+    expense = db.get(models.Expense, expense_id)
+
+    if expense is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Expense not found",
+        )
+
+    db.delete(expense)
+    db.commit()
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
