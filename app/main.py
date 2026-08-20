@@ -1,5 +1,6 @@
-from fastapi import Depends, FastAPI, status
+from fastapi import Depends, FastAPI, status, HTTPException
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 
 from app import models, schemas
 from app.database import engine, get_db
@@ -38,3 +39,22 @@ def create_expense(
     db.commit()
     db.refresh(db_expense)
     return db_expense
+
+@app.get("/expenses", response_model=list[schemas.ExpenseResponse])
+def list_expenses(db: Session = Depends(get_db)):
+    # Retrieve every expense, ordered from newest to oldest.
+    statement = select(models.Expense).order_by(models.Expense.id.desc())
+    return db.scalars(statement).all()
+
+
+@app.get("/expenses/{expense_id}", response_model=schemas.ExpenseResponse)
+def get_expense(expense_id: int, db: Session = Depends(get_db)):
+    expense = db.get(models.Expense, expense_id)
+
+    if expense is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Expense not found",
+        )
+
+    return expense
